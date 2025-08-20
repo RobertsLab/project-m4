@@ -1,0 +1,7 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# Large downloaded SRA data files (>99MB)
+output/02/

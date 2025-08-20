@@ -1,0 +1,11 @@
+Tasks
+
+Task 01- examine data/sra_result.csv and identify 100 experiments such 
+that those experiments are select based on the parameters such that 
+selecting those where tissue / life stage is known, the study title 
+is informative wiht regard to location or environment, and experiments where 
+corresponding RNA-seq data is suggested. Note that you have to get 100 so do the best
+meet thes parameters but otherwise select randomly.
+
+
+Task 02 - Download experiments in 01-selected-experiments.csv from NCBI SRA.

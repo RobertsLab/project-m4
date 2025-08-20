@@ -1,0 +1,15 @@
+Repository Instructions:
+
+For each Task, name all code for that Task with the task number as the prefix.
+
+For all output for a given Task, direct to subdirectory in output directory with name corresponding to task number. 
+
+For example of Task 01 is download SRA data, there might be a script in code directory name 01-download-SRA-data.py and in output/01 downloaded data would be located.
+
+In code directory there should be a README.md file that list all code and provide a concise sentence on what it does.
+
+
+In output subdirectories (eg 01) there should be a concise README.md that describes contents.
+
+
+For all files > 99MB, list in .gitignore.
