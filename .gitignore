@@ -2,6 +2,9 @@
 .Rhistory
 .RData
 .Ruserdata
+__pycache__/
 
-# Large downloaded SRA data files (>99MB)
-output/02/
+# Large downloaded SRA data (>99MB); keep only the README and log
+output/02/*
+!output/02/README.md
+!output/02/download_log.tsv

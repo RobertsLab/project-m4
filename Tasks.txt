@@ -8,4 +8,4 @@ corresponding RNA-seq data is suggested. Note that you have to get 100 so do the
 meet thes parameters but otherwise select randomly.
 
 
-Task 02 - Download experiments in 01-selected-experiments.csv from NCBI SRA.
+Task 02 - Download experiments in output/01/selected_experiments.csv from NCBI SRA.
