@@ -1,4 +1,4 @@
 # Code Directory
 
-- `01-select-experiments.py`: Selects 100 experiments from `sra_result.csv` where tissue/life stage is known, study title is informative regarding location/environment, and RNA-seq data is suggested.
-- `02-download-sra-data.py`: Downloads the selected SRA experiments from NCBI using the SRA Toolkit.
+- `01-select-experiments.py`: Scores each experiment in `data/sra_result.csv` on three criteria (tissue/life stage known, study title informative about location/environment, corresponding RNA-seq suggested) and selects the top 100, breaking ties with a seeded random draw.
+- `02-download-sra-data.py`: Downloads the experiments in `output/01/selected_experiments.csv` with SRA Toolkit (`prefetch`, `fasterq-dump`) and converts each run to gzipped FASTQ; re-running resumes. See `--help` for options.

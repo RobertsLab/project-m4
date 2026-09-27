@@ -1,38 +1,116 @@
+#!/usr/bin/env python3
+"""
+Task 01: select 100 experiments from data/sra_result.csv.
+
+Each experiment gets one point for each criterion it meets:
+  - tissue_known:      tissue or life stage is named in the experiment metadata
+  - informative_title: study title says something about location or environment
+  - rnaseq_suggested:  the study indicates corresponding RNA-seq data exists
+
+Experiments are ranked by total score. Ties are broken by a seeded random
+shuffle, so any experiments filled in from a partially used score tier are a
+reproducible random draw.
+"""
+
+import re
+from pathlib import Path
 
 import pandas as pd
-import numpy as np
 
-# Load the SRA results CSV
-df = pd.read_csv('data/sra_result.csv')
+SEED = 42
+N_SELECT = 100
 
-# Define filters
-def is_informative(row):
-    tissue_life_stage = str(row.get('Experiment Title', '') or '').lower()
-    study_title = str(row.get('Study Title', '') or '').lower()
-    library_strategy = str(row.get('Library Strategy', '') or '').lower()
-    tissue_known = any(x in tissue_life_stage for x in ['gill', 'mantle', 'soft tissue', 'larva', 'embryo', 'juvenile', 'adult'])
-    location_keywords = ['china', 'france', 'environment', 'infection', 'strain', 'gestinov', 'vibrio', 'growth']
-    informative_title = any(x in study_title for x in location_keywords)
-    rna_seq = 'rna-seq' in library_strategy or 'transcriptome' in library_strategy
-    score = int(tissue_known) + int(informative_title) + int(rna_seq)
-    return score
+REPO = Path(__file__).resolve().parent.parent
+INPUT = REPO / 'data' / 'sra_result.csv'
+OUTPUT = REPO / 'output' / '01' / 'selected_experiments.csv'
 
-# Score all experiments
-df['score'] = df.apply(is_informative, axis=1)
+# Tissue and life stage terms (matched as substrings, so 'gonad' covers
+# 'gonads' and 'gonadal', 'embryo' covers 'embryos').
+TISSUE_TERMS = [
+    'gill', 'ctenidia', 'mantle', 'gonad', 'muscle', 'hepatopancreas',
+    'digestive gland', 'hemocyte', 'haemocyte', 'soft tissue', 'somatic tissue',
+    'sperm', 'oocyte', 'egg',
+]
+LIFE_STAGE_TERMS = [
+    'larva', 'embryo', 'morula', 'blastula', 'gastrula', 'trochophore',
+    'veliger', 'spat', 'juvenile', 'adult',
+]
+# Sample codes such as GT1_09_T0_G_R, where G = gill and M = mantle.
+TISSUE_CODE = re.compile(r'_t\d+_[gm]_', re.IGNORECASE)
 
-# Sort by score (highest first)
-df_sorted = df.sort_values(by='score', ascending=False)
+# Location and environment terms for the study title. Pathogen, strain and
+# growth terms are left out: they describe the experimental design, not where
+# the animals came from or the conditions they lived in.
+LOCATION_TERMS = [
+    'china', 'chinese', 'france', 'french', 'japan', 'korea', 'washington',
+    'intertidal', 'subtidal', 'estuar', 'wild', 'field', 'populations',
+    'environment',
+]
+ENVIRONMENT_TERMS = [
+    'heat', 'temperature', 'thermal', 'desiccation', 'dessication', 'salinity',
+    'hypoxia', 'acidification',
+]
+PH_PATTERN = re.compile(r'\bph\b', re.IGNORECASE)
 
-# Select up to 100 experiments, prioritizing those with highest score
-selected_100 = df_sorted.head(100)
+RNASEQ_PATTERN = re.compile(r'rna-seq|rnaseq|transcriptom|gene expression',
+                            re.IGNORECASE)
 
-# If fewer than 100 with score > 0, fill with random others
-if selected_100['score'].min() == 0:
-    # If some are score 0, replace them with random from rest
-    n_needed = 100 - (df_sorted['score'] > 0).sum()
-    if n_needed > 0:
-        random_fill = df_sorted[df_sorted['score'] == 0].sample(n=n_needed, random_state=42)
-        selected_100 = pd.concat([df_sorted[df_sorted['score'] > 0], random_fill]).head(100)
 
-# Save selected experiments
-selected_100.drop(columns=['score']).to_csv('output/01/selected_experiments.csv', index=False)
+def text(value):
+    return '' if pd.isna(value) else str(value).lower()
+
+
+def tissues_in(s):
+    return {t for t in TISSUE_TERMS + LIFE_STAGE_TERMS if t in s}
+
+
+def tissue_known(row):
+    sample_text = ' '.join(text(row[c]) for c in
+                           ['Experiment Title', 'Sample Title', 'Library Name'])
+    if tissues_in(sample_text) or TISSUE_CODE.search(sample_text):
+        return True
+    # Fall back to the study title only when it names a single tissue or
+    # stage; a title listing several ('gills and mantle') does not say which
+    # one this experiment is.
+    return len(tissues_in(text(row['Study Title']))) == 1
+
+
+def informative_title(row):
+    title = text(row['Study Title'])
+    return (any(t in title for t in LOCATION_TERMS + ENVIRONMENT_TERMS)
+            or bool(PH_PATTERN.search(title)))
+
+
+def rnaseq_suggested(row):
+    return (bool(RNASEQ_PATTERN.search(text(row['Study Title'])))
+            or text(row['Library Strategy']) == 'rna-seq'
+            or text(row['Library Source']) == 'transcriptomic')
+
+
+def main():
+    df = pd.read_csv(INPUT)
+
+    df['tissue_known'] = df.apply(tissue_known, axis=1)
+    df['informative_title'] = df.apply(informative_title, axis=1)
+    df['rnaseq_suggested'] = df.apply(rnaseq_suggested, axis=1)
+    df['score'] = df[['tissue_known', 'informative_title',
+                      'rnaseq_suggested']].sum(axis=1)
+
+    # Shuffle first, then stable-sort by score: rows keep their random order
+    # within each score tier, so the cut at N_SELECT is a seeded random draw.
+    selected = (df.sample(frac=1, random_state=SEED)
+                  .sort_values('score', ascending=False, kind='stable')
+                  .head(N_SELECT))
+
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    selected.to_csv(OUTPUT, index=False)
+
+    print('Score distribution (all experiments):')
+    print(df['score'].value_counts().sort_index(ascending=False).to_string())
+    print('\nScore distribution (selected):')
+    print(selected['score'].value_counts().sort_index(ascending=False).to_string())
+    print(f'\nWrote {len(selected)} experiments to {OUTPUT.relative_to(REPO)}')
+
+
+if __name__ == '__main__':
+    main()
